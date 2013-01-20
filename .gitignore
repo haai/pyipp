@@ -1,0 +1,14 @@
+# dirs
+build/
+dist/
+sdist/
+
+# files
+Makefile
+MANIFEST
+*.pyc
+*.log
+*.o
+*.html
+*.htm
+*.php
