@@ -1,0 +1,35 @@
+///////////////////////////////////////////////////////////////////////////////
+//
+// pyipp - Python bindings to Intel's
+//         Integrated Perfromance Primitives libraries (IPP)
+//
+///////////////////////////////////////////////////////////////////////////////
+
+Copyright (c) 2012-2013, Christian Staffa <haai.de>
+Copyright (c) 2012, Riverbed Technology, Inc. <www.riverbed.com>
+See LICENSE file for further information.
+
+NOTE:
+=====
+* You have to have the Intel(R) IPP Library installed on your system
+* The IPPROOT variable in ./conf/ipp_globals have to be set to the root
+  directory of the IPP installation. This defaults to /opt/intel/ipp.
+  Please change this to suit your needs.
+* The IPPARCH variable in ./conf/ipp_globals have to be set to the used
+  architecture. This defaults to ia32.
+  Please change this to suit your needs.
+
+INSTALL:
+========
+Plese check the ./conf/ipp_globals file to adapt the bindings to your ipp installation. Then a normal installation procedure with
+$ python setup.py build
+$ python setup.py install
+should be sufficent.
+
+CHANGES:
+========
+
+LICENSE:
+========
+See LICENSE file for further information.
+
