@@ -11,15 +11,14 @@
  */
 #include <Python.h>
 #include <structmember.h>
-#include <ipp.h>
+#include <ippcore.h>
 #include <string.h>
-#ifdef DEBUG_IPP
-#include <stdio.h>
-#include <assert.h>
-#endif
 
 static PyObject *IppError;
 
+/**
+ * \brief	translate a cpu type into a string
+ */
 const char *
 _getIppCpuStringType(IppCpuType ct)
 {
@@ -60,43 +59,67 @@ _getIppCpuStringType(IppCpuType ct)
 	return NULL;
 }
 
-
-
 /**
- * \brief	gets and prints the cpu type string
- * \return	cpu identification string
+ * \brief	Translates a status code into a message
  */
 static PyObject *
-_cpu_info(PyObject *self, PyObject *args)
+_getStatusString(PyObject *self, PyObject *args)
+{
+    const char *iss;
+    IppStatus istatus;
+
+    if (!PyArg_ParseTuple(args, "i", &istatus))
+        goto error;
+    iss= ippGetStatusString(istatus);
+    return Py_BuildValue("s", iss);
+error:
+    return NULL;
+}
+
+/**
+ * \brief	returns a processor type
+ */
+static PyObject *
+_getCpuType(PyObject *self, PyObject *args)
 {
 	IppCpuType ct;
 	
 	ct= ippGetCpuType();
-	return Py_BuildValue("s", _getIppCpuStringType(ct));
+	return Py_BuildValue("i", ct);
 }
 
-
+/**
+ * \brief	returns a current value of the time stamp counter (TSC) register
+ */
 static PyObject *
-_checkString(PyObject *self, PyObject *args)
+_getCpuClocks(PyObject *self, PyObject *args)
 {
-    PyObject *string;
-    int i, size;
-    const char *s;
-    PyArg_ParseTuple(args,"O",&string);
-    s= PyString_AsString(string);
-#ifdef DEBUG_IPP
-    printf("string='%s'\n", s);
-#endif
-    /* FIXME(haai): strlen is no good on py strings! (py extending faq)*/
-    size= strlen(s);
-#ifdef DEBUG_IPP
-    for (i= 0; i < size; ++i) {
-        printf("%c", s[i]);
-    }
-#endif
-    Py_RETURN_NONE;
+    Ipp64u icc;
+
+    icc= ippGetCpuClocks();
+    return Py_BuildValue("K", icc);
 }
 
+/**
+ * \brief	estimates the processor operating freqency
+ */
+static PyObject *
+_getCpuFreqMhz(PyObject *self, PyObject *args)
+{
+    int imhz;
+    IppStatus istatus;
+
+    istatus= ippGetCpuFreqMhz(&imhz);
+    if (istatus != ippStsNoErr)
+        goto error;
+    return Py_BuildValue("i", imhz);
+error:
+    return NULL;
+}
+
+/**
+ * \brief	convenient function for getting string representation
+ */
 void
 _getCpuFeatureFlagString(Ipp64u CpuFeatureFlags, char *buf, int len)
 {
@@ -179,82 +202,43 @@ _getCpuFeatureFlagString(Ipp64u CpuFeatureFlags, char *buf, int len)
 	return ;
 }
 
+/**
+ * \brief	retrieves the processor features
+ */
 static PyObject *
 _getCpuFeatures(PyObject *self, PyObject *args)
 {
-	Ipp64u CpuFeatureFlags;
+	Ipp64u fm;
 	char CpuFlagString[100];
 	IppStatus istatus;
 
-	istatus= ippGetCpuFeatures(&CpuFeatureFlags, NULL);
-	if (istatus != ippStsNoErr) {
-		if (istatus == ippStsNotSupportedCpu)
-			PyErr_SetString(IppError, "Not Supported Cpu");
+	istatus= ippGetCpuFeatures(&fm, NULL);
+	if (istatus != ippStsNoErr)
 		goto error;
-	}
-	_getCpuFeatureFlagString(CpuFeatureFlags, CpuFlagString, sizeof(CpuFlagString));
-	return Py_BuildValue("Ks", CpuFeatureFlags, CpuFlagString);
+	_getCpuFeatureFlagString(fm, CpuFlagString, sizeof(CpuFlagString));
+	return Py_BuildValue("Ks", fm, CpuFlagString);
 error:
 	return NULL;
 }
 
+/**
+ * \brief	returns a features mask for enabled processor features
+ * url		
+ */
 static PyObject *
 _getEnabledCpuFeatures(PyObject *self, PyObject *args)
 {
-	Ipp64u CpuFeatureFlags;
+	Ipp64u fm;
 	char CpuFlagString[100];
 
-	CpuFeatureFlags= ippGetEnabledCpuFeatures();
-	_getCpuFeatureFlagString(CpuFeatureFlags, CpuFlagString, sizeof(CpuFlagString));
-	return Py_BuildValue("Ks", CpuFeatureFlags, CpuFlagString);
+	fm= ippGetEnabledCpuFeatures();
+	_getCpuFeatureFlagString(fm, CpuFlagString, sizeof(CpuFlagString));
+	return Py_BuildValue("Ks", fm, CpuFlagString);
 }
 
-static PyObject *
-_getLibVersion(PyObject *self, PyObject *args)
-{
-	const IppLibraryVersion *ilv;
-
-	ilv= ippchGetLibVersion();
-	return Py_BuildValue("ss", ilv->Name, ilv->Version);
-}
-
-static PyObject *
-_getStatusString(PyObject *self, PyObject *args)
-{
-    const char *iss;
-    IppStatus istatus;
-
-    if (!PyArg_ParseTuple(args, "i", &istatus))
-        goto ret;
-    iss= ippGetStatusString(istatus);
-    return Py_BuildValue("s", iss);
-ret:
-    return NULL;
-}
-
-static PyObject *
-_getCpuClocks(PyObject *self, PyObject *args)
-{
-    Ipp64u icc;
-
-    icc= ippGetCpuClocks();
-    return Py_BuildValue("K", icc);
-}
-
-static PyObject *
-_getCpuFreqMhz(PyObject *self, PyObject *args)
-{
-    int imhz;
-    IppStatus istatus;
-
-    istatus= ippGetCpuFreqMhz(&imhz);
-    if (istatus != ippStsNoErr)
-        goto ret;
-    return Py_BuildValue("i", imhz);
-ret:
-    return NULL;
-}
-
+/**
+ * \brief	returns the number of cores for multi-core processors
+ */
 static PyObject *
 _getNumCoresOnDie(PyObject *self, PyObject *args)
 {
@@ -264,8 +248,11 @@ _getNumCoresOnDie(PyObject *self, PyObject *args)
     return Py_BuildValue("i", incod);
 }
 
+/**
+ * \brief	returns maximum size of the L2 and L3 caches of the processor
+ */
 static PyObject *
-_getMaxCacheSizeB(PyObject *self, PyObject *args)
+_getMaxCacheSize(PyObject *self, PyObject *args)
 {
     int isb;
     IppStatus istatus;
@@ -278,6 +265,73 @@ ret:
     return NULL;
 }
 
+/**
+ * \brief	enables or disables flush-to-zero (FTZ) mode
+ * url		
+ */
+static PyObject *
+_setFlushToZero(PyObject *self, PyObject *args)
+{
+	IppStatus istatus;
+	int val;
+	unsigned int umask;
+
+	if (!PyArg_ParseTuple(args, "ii", &val, &umask))
+		goto error;
+    if (umask= 0)
+	    istatus= ippSetFlushToZero(val, NULL);
+    else
+        istatus= ippSetFlushToZero(val, &umask);
+    if (istatus != ippStsNoErr)
+        goto error;
+    if (umask == 0)
+	    return Py_BuildValue("ii", val, 0);
+    else
+        return Py_BuildValue("ii", val, umask);
+error:
+	return NULL;
+}
+
+/**
+ * \brief	enables or disables denormals-are-zero (DAZ) mode
+ * url		
+ */
+static PyObject *
+_setDenormAreZeros(PyObject *self, PyObject *args)
+{
+	IppStatus istatus;
+	int val;
+
+	if (!PyArg_ParseTuple(args, "i", &val))
+		goto error;
+	istatus= ippSetDenormAreZeros(val);
+	return Py_BuildValue("i", istatus);
+error:
+	return NULL;
+}
+
+/**
+ * \brief	sets the number of threads in the multithreading environment
+ */
+static PyObject *
+_setNumThreads(PyObject *self, PyObject *args)
+{
+    int inthr;
+    IppStatus istatus;
+
+	if (!PyArg_ParseTuple(args, "i", &inthr))
+		goto error;
+	istatus= ippSetNumThreads(inthr);
+    if (istatus != ippStsNoErr)
+        goto error;
+    return Py_BuildValue("i", istatus);
+error:
+    return NULL;
+}
+
+/**
+ * \brief	returns the number of existing threads in the multithreading environment
+ */
 static PyObject *
 _getNumThreads(PyObject *self, PyObject *args)
 {
@@ -286,25 +340,43 @@ _getNumThreads(PyObject *self, PyObject *args)
 
     istatus= ippGetNumThreads(&inthr);
     if (istatus != ippStsNoErr)
-        goto ret;
+        goto error;
     return Py_BuildValue("i", inthr);
-ret:
+error:
     return NULL;
 }
 
+/**
+ * \brief	Binds OpenMP threads to OS processors
+ * url
+ */
+static PyObject *
+_setAffinity(PyObject *self, PyObject *args)
+{
+	IppStatus istatus;
+	IppAffinityType iat;
+	int offset;
+
+	if (!PyArg_ParseTuple(args, "ii", &iat, &offset))
+		goto error;
+	istatus= ippSetAffinity(iat, offset);
+	if (istatus != ippStsNoErr)
+		goto error;
+	return Py_BuildValue("i", istatus);
+error:
+	return NULL;
+}
 
 /**
  * \brief	holds the methods for the module
  */
 static PyMethodDef Module_Methods[]= {
-	{"_cpu_info", _cpu_info, METH_VARARGS,
-		"Execute cpu ipp lib function"},
+	{"_getCpuType", _getCpuType, METH_VARARGS,
+		"Return a processor type"},
 	{"_getCpuFeatures", _getCpuFeatures, METH_VARARGS,
 		"Get the CPU Features Flag Field"},
 	{"_getEnabledCpuFeatures", _getEnabledCpuFeatures, METH_VARARGS,
 		"Get the ENABLED CPU Features Flag Field"},
-	{"_getLibVersion", _getLibVersion, METH_VARARGS,
-		"Get the Library Version Information"},
     {"_getStatusString", _getStatusString, METH_VARARGS,
         "Translates a status code into a Ipp Status message"},
     {"_getCpuClocks", _getCpuClocks, METH_VARARGS,
@@ -313,12 +385,18 @@ static PyMethodDef Module_Methods[]= {
         "Estimates the processor operating frequecy"},
     {"_getNumCoresOnDie", _getNumCoresOnDie, METH_VARARGS,
         "Returns the number of cores for multi-core processors"},
-    {"_getMaxCacheSizeB", _getMaxCacheSizeB, METH_VARARGS,
+    {"_getMaxCacheSize", _getMaxCacheSize, METH_VARARGS,
         "Returns maximum size of the L2 and L3 caches of the processor"},
     {"_getNumThreads", _getNumThreads, METH_VARARGS,
-        "Returns the number of existing threads in the multithreading env."},
-    {"_checkString", _checkString, METH_VARARGS,
-        "Check String"},
+        "Returns the number of existing threads in the multithreading environment"},
+    {"_setNumThreads", _setNumThreads, METH_VARARGS,
+        "Sets the number of threads in the multithreading environment"},
+    {"_setAffinity", _setAffinity, METH_VARARGS,
+        "Binds OpenMP threads to OS processors"},
+    {"_setFlushToZero", _setFlushToZero, METH_VARARGS,
+        "Enables or disables flush-to-zero (FTZ) mode"},
+    {"_setDenormAreZeros", _setDenormAreZeros, METH_VARARGS,
+        "Enables or disables denormals-are-zero (DAZ) mode"},
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 
@@ -329,14 +407,72 @@ PyMODINIT_FUNC
 init_ipp(void)
 {
 	PyObject *m;
+	PyObject *d;
     
 	m= Py_InitModule("_ipp", Module_Methods);
-	if (m == NULL) {
+	if (!m)
 		return;
-	}
+	d= PyModule_GetDict(m);
+    /* add cpu type enums */
+	PyDict_SetItemString(d, "ippCpuUnknown", PyInt_FromLong(ippCpuUnknown));
+	PyDict_SetItemString(d, "ippCpuPP", PyInt_FromLong(ippCpuPP));
+	PyDict_SetItemString(d, "ippCpuPMX", PyInt_FromLong(ippCpuPMX));
+	PyDict_SetItemString(d, "ippCpuPPR", PyInt_FromLong(ippCpuPPR));
+	PyDict_SetItemString(d, "ippCpuPII", PyInt_FromLong(ippCpuPII));
+	PyDict_SetItemString(d, "ippCpuPIII", PyInt_FromLong(ippCpuPIII));
+	PyDict_SetItemString(d, "ippCpuP4", PyInt_FromLong(ippCpuP4));
+	PyDict_SetItemString(d, "ippCpuP4HT", PyInt_FromLong(ippCpuP4HT));
+	PyDict_SetItemString(d, "ippCpuP4HT2", PyInt_FromLong(ippCpuP4HT2));
+	PyDict_SetItemString(d, "ippCpuCentrino", PyInt_FromLong(ippCpuCentrino));
+	PyDict_SetItemString(d, "ippCpuCoreSolo", PyInt_FromLong(ippCpuCoreSolo));
+	PyDict_SetItemString(d, "ippCpuCoreDuo", PyInt_FromLong(ippCpuCoreDuo));
+	PyDict_SetItemString(d, "ippCpuITP", PyInt_FromLong(ippCpuITP));
+	PyDict_SetItemString(d, "ippCpuITP2", PyInt_FromLong(ippCpuITP2));
+	PyDict_SetItemString(d, "ippCpuEM64T", PyInt_FromLong(ippCpuEM64T));
+	PyDict_SetItemString(d, "ippCpuC2D", PyInt_FromLong(ippCpuC2D));
+	PyDict_SetItemString(d, "ippCpuC2Q", PyInt_FromLong(ippCpuC2Q));
+	PyDict_SetItemString(d, "ippCpuPenryn", PyInt_FromLong(ippCpuPenryn));
+	PyDict_SetItemString(d, "ippCpuBonnell", PyInt_FromLong(ippCpuBonnell));
+	PyDict_SetItemString(d, "ippCpuNehalem", PyInt_FromLong(ippCpuNehalem));
+	PyDict_SetItemString(d, "ippCpuNext", PyInt_FromLong(ippCpuNext));
+	PyDict_SetItemString(d, "ippCpuSSE", PyInt_FromLong(ippCpuSSE));
+	PyDict_SetItemString(d, "ippCpuSSE2", PyInt_FromLong(ippCpuSSE2));
+	PyDict_SetItemString(d, "ippCpuSSE3", PyInt_FromLong(ippCpuSSE3));
+	PyDict_SetItemString(d, "ippCpuSSSE3", PyInt_FromLong(ippCpuSSSE3));
+	PyDict_SetItemString(d, "ippCpuSSE41", PyInt_FromLong(ippCpuSSE41));
+	PyDict_SetItemString(d, "ippCpuSSE42", PyInt_FromLong(ippCpuSSE42));
+	PyDict_SetItemString(d, "ippCpuAVX", PyInt_FromLong(ippCpuAVX));
+	PyDict_SetItemString(d, "ippCpuAES", PyInt_FromLong(ippCpuAES));
+	PyDict_SetItemString(d, "ippCpuF16RND", PyInt_FromLong(ippCpuF16RND));
+	PyDict_SetItemString(d, "ippCpuX8664", PyInt_FromLong(ippCpuX8664));
+	/* add cpuid enums*/
+	PyDict_SetItemString(d, "ippCPUID_MMX", PyInt_FromLong(ippCPUID_MMX));
+	PyDict_SetItemString(d, "ippCPUID_SSE", PyInt_FromLong(ippCPUID_SSE));
+	PyDict_SetItemString(d, "ippCPUID_SSE2", PyInt_FromLong(ippCPUID_SSE2));
+	PyDict_SetItemString(d, "ippCPUID_SSE3", PyInt_FromLong(ippCPUID_SSE3));
+	PyDict_SetItemString(d, "ippCPUID_SSSE3", PyInt_FromLong(ippCPUID_SSSE3));
+	PyDict_SetItemString(d, "ippCPUID_MOVBE", PyInt_FromLong(ippCPUID_MOVBE));
+	PyDict_SetItemString(d, "ippCPUID_SSE41", PyInt_FromLong(ippCPUID_SSE41));
+	PyDict_SetItemString(d, "ippCPUID_SSE42", PyInt_FromLong(ippCPUID_SSE42));
+	PyDict_SetItemString(d, "ippCPUID_AVX", PyInt_FromLong(ippCPUID_AVX));
+	PyDict_SetItemString(d, "ippAVX_ENABLEDBYOS", PyInt_FromLong(ippAVX_ENABLEDBYOS));
+	PyDict_SetItemString(d, "ippCPUID_AES", PyInt_FromLong(ippCPUID_AES));
+	PyDict_SetItemString(d, "ippCPUID_CLMUL", PyInt_FromLong(ippCPUID_CLMUL));
+	PyDict_SetItemString(d, "ippCPUID_ABB", PyInt_FromLong(ippCPUID_ABR));
+	PyDict_SetItemString(d, "ippCPUID_RDRRAND", PyInt_FromLong(ippCPUID_RDRRAND));
+	PyDict_SetItemString(d, "ippCPUID_F16C", PyInt_FromLong(ippCPUID_F16C));
+	PyDict_SetItemString(d, "ippCPUID_GETINFO_A", PyLong_FromLongLong(ippCPUID_GETINFO_A));
+    /* add affinity enums */
+    PyDict_SetItemString(d, "ippAffinityCompactFineCore", PyLong_FromLong(ippAffinityCompactFineCore));
+    PyDict_SetItemString(d, "ippAffinityCompactFineHT", PyLong_FromLong(ippAffinityCompactFineHT));
+    PyDict_SetItemString(d, "ippAffinityAllEnabled", PyLong_FromLong(ippAffinityAllEnabled));
+    PyDict_SetItemString(d, "ippAffinityRestore", PyLong_FromLong(ippAffinityRestore));
+    PyDict_SetItemString(d, "ippTstAffinityCompactFineCore", PyLong_FromLong(ippTstAffinityCompactFineCore));
+    PyDict_SetItemString(d, "ippTstAffinityCompactFineHT", PyLong_FromLong(ippTstAffinityCompactFineHT));
+    /* add exception class */
 	IppError= PyErr_NewException("_ipp.error", NULL, NULL);
 	Py_INCREF(IppError);
-	PyModule_AddObject(m, "_IppError", IppError);
+	PyModule_AddObject(m, "_ippError", IppError);
 
     ippInit();
 

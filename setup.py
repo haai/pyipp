@@ -14,32 +14,36 @@ BUILD_VERSION=0
 DEBUG_IPP=0
 EXTRA_COMPILE_ARGS= [
     '-Wall',
-    #'-g'
+    '-g'
     ]
 DEFINE_MACROS= [('DEBUG_IPP', '%i' % DEBUG_IPP),('NDEBUG', '1')]
 MODULES=[]
 
+print "===[ pyipp setup ]==="
 # authors and license information
 f= open('LICENSE', 'r')
 print f.read()
 
 # process configuration for seperate modules
-print "=== searching for registering modules ==="
+print "=== searching for registerable modules ==="
 for f in os.listdir('conf/modules'):
     if re.match(r'^.*\.pyc$', f) or re.match(r'^__init__.py$', f):
         continue
     c= f.split('.')
     m= __import__("conf.modules.%s" % (c[0],),\
             globals(), locals(), ["module"])
-    print "imported module %s" % (c[0],), m
-    print "registering %s" % m.module
+    print "imported module %s" % (c[0],), "registering %s" % m.module
     MODULES.append(m.module)
-print "=== registering done ==="
+print "=== registering modules done ==="
 
 # process common module globals
 for m in MODULES:
     m.define_macros=DEFINE_MACROS
     m.extra_compile_args= EXTRA_COMPILE_ARGS
+
+#unittests
+import test.unit.pyipp_unittest as put
+put.doTest()
 
 # python distutils setup file
 setup(name='pyipp',

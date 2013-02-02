@@ -11,19 +11,19 @@
 #include <ipp.h>
 #include <string.h>
 #ifdef DEBUG_IPP
-#include <stdio.h>
 #include <assert.h>
 #endif
 
 static PyObject *IppsError;
-
+/**
+ * \brief	returns information about the active version of Intel IPP signal processing software
+ */
 static PyObject *
 _getLibVersion(PyObject *self, PyObject *args)
 {
 	const IppLibraryVersion *ilv;
 
 	ilv= ippsGetLibVersion();
-
     return Py_BuildValue("(sssdddd)",
 			ilv->Name,
 			ilv->Version,
